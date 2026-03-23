@@ -3,7 +3,8 @@
 
 import logging
 from collections.abc import Iterable
-from datetime import timedelta
+from datetime import timedelta, datetime
+from zoneinfo import ZoneInfo
 from typing import List
 
 import pandas as pd
@@ -26,16 +27,38 @@ class PvDataConnector(PowerDataConnector):
         self.timezone = timezone
         self.model = model
 
-    # Read details to access current power from a database or api
-    """
-        self.mqtt_connection = pv_details.get('mqtt_connection')
-        self.db_connection = pv_details.get('db_connection')
-        self.api_connection = pv_details.get('api_connection')
-    """
+        # Read details to access current power from a database or api
+        """
+            self.mqtt_connection = pv_details.get('mqtt_connection')
+            self.db_connection = pv_details.get('db_connection')
+            self.api_connection = pv_details.get('api_connection')
+        """
+        self.pv_details = pv_details
+        
+        df = pd.read_csv(self.pv_details.get('path_to_data'), sep=";", decimal=",")
+        df["DateTime"] = pd.to_datetime(df["Date"] + " " + df["Time"])
+        df["time_key"] = df["DateTime"].dt.strftime("%m-%d %H:%M")
+        self.datasource = df
+
 
     def read_current_power(self) -> float:
-        """Get the current power from any source"""
-        return 50.0
+        """Get the current power from data source"""
+
+        now = datetime.now(ZoneInfo(self.timezone)).replace(
+            minute=0, second=0, microsecond=0
+        )
+        time_key = now.strftime("%m-%d %H:00")
+
+        row = self.datasource[self.datasource["time_key"] == time_key]
+
+        if row.empty:
+            raise ValueError(f"No PV data found for {time_key}")
+
+        normalized = float(row.iloc[0]["Normalized Production [0..1]"])
+        peak_power = float(self.pv_details.get("peak_power"))
+
+        current_power = peak_power * normalized
+        return current_power
 
     # REQUIRED METHOD:
     # returns the current power data for each commodity quantity
@@ -56,7 +79,9 @@ class PvDataConnector(PowerDataConnector):
     # returns the power forecast values for a given horizon
     def get_power_forecast_elements(self) -> List[PowerForecastElement]:
 
-        power_forecast = self.model.get_forecast()
+        power_forecast = self.model.get_forecast(
+            start = datetime.now(ZoneInfo(self.timezone))
+            )
         elements: List[PowerForecastElement] = []
 
         if power_forecast is None or not isinstance(power_forecast, Iterable):

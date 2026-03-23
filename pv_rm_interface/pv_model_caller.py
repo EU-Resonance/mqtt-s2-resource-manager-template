@@ -1,5 +1,6 @@
 import logging
-from datetime import timedelta
+from datetime import timedelta, datetime
+from zoneinfo import ZoneInfo
 
 import pandas as pd
 
@@ -10,26 +11,46 @@ class PvForecastModel(PowerForecastInterface):
     def __init__(
         self, pv_details, model_params, horizon: timedelta = timedelta(hours=1)
     ):
-        self.param = pv_details.get("param")
-        self.model_param = model_params.get("model_param")
+        self.pv_details = pv_details
         self.horizon = timedelta(hours=int(model_params.get("horizon")))
+        self.fc_res = model_params.get("stepsize")
+        self.peak_power = float(self.pv_details.get("peak_power"))
 
-    def get_forecast(self):
-        try:
-            # model_path = './pv_rm_interface/resources/models/'
-            # LSTM = joblib.load(model_path + 'LSTM_Model.pkl')
+        df = pd.read_csv(
+            pv_details.get("path_to_data"),
+            sep=";",
+            decimal=","
+        )
+        df["DateTime"] = pd.to_datetime(df["Date"] + " " + df["Time"])
+        df.set_index("DateTime", inplace=True)
+        df.sort_index(inplace=True)
+        self.df = df
 
-            # model_input = self.get_model_input()
-            # p = self.prediction(model_input, model_param)
 
-            # if isinstance(p, (list, tuple)):
-            #     result_list = [float(x) for x in p]
+    def get_forecast(self, start = datetime.now) -> pd.Series:
+        """Return PV forecast series from now for the configured horizon."""
 
-            return pd.Series([50.0, 55.0, 60.0, 65.0, 70.0, 75.0])
+        start_time = pd.Timestamp(start.replace(second=0, microsecond=0)).tz_localize(None).replace(year=2020)
+        end_time = start_time + self.horizon
 
-        except Exception as e:
-            logging.error(f"Error in prediction: {e}")
-            return -1
+        filtered_df = self.df.loc[start_time:end_time]
+
+        if filtered_df.empty:
+            return pd.Series(dtype=float)
+
+        resampled_df = (
+            filtered_df[["Normalized Production [0..1]"]]
+            .resample(self.fc_res)
+            .mean()
+            .interpolate(method="time")
+            .bfill()
+            .ffill()
+        )
+
+        forecast_series = self.peak_power * resampled_df["Normalized Production [0..1]"]
+        forecast_series.name = "forecast_power"
+
+        return forecast_series
 
     def get_forecast_for_event(self, event, commodity):
         """Generate a forecast specific to the provided event."""

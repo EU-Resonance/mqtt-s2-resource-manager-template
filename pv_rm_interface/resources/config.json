@@ -1,0 +1,10 @@
+{
+  "pv_details": {
+    "path_to_data": "./pv_rm_interface/resources/PV_production_2020_1hRes.csv",
+    "peak_power": 15.0
+  },
+  "pv_model": {
+        "stepsize": "15min",
+        "horizon": "24"
+    }
+}
