@@ -1,0 +1,12 @@
+services:
+
+  PvSystemRM:
+    container_name: PvSystemRM
+    image: pv_interface
+    ports:
+      - 127.0.0.1:5002:5002
+    build:
+      context: ..
+      dockerfile: pv_rm_interface/Dockerfile
+    env_file:
+      - ../environment.env

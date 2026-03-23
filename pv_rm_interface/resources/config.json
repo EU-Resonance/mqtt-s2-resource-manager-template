@@ -1,0 +1,9 @@
+{
+    "pv_details": {
+        "param": "value"
+    },
+    "pv_model": {
+        "model_param": "value",
+        "horizon": "6"
+    }
+}
