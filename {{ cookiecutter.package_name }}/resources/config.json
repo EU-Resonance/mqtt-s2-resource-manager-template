@@ -1,0 +1,9 @@
+{
+    "{{ cookiecutter.prefix }}_details": {
+        "param": "value"
+    }{% if cookiecutter.with_model == "yes" %},
+    "{{ cookiecutter.prefix }}_model": {
+        "model_param": "value",
+        "horizon": "6"
+    }{% endif %}
+}

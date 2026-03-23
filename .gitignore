@@ -1,0 +1,16 @@
+.vscode/
+.ruff_cache/
+**/__pycache__/
+**.egg-info/ 
+
+# local config / secrets
+environment.env
+*resources/config.json
+*.local
+
+# certs / keys
+*.pem
+*.key
+*.crt
+*.cer
+*.p12
