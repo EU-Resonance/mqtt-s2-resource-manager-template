@@ -89,7 +89,7 @@ def in_git_repo() -> bool:
 
 if "{{ cookiecutter.create_new_branch }}" == "yes":
     prefix = "{{ cookiecutter.prefix }}"
-    branch_name = f"feature/device/{prefix}"
+    branch_name = f"device/{prefix}"
 
     if in_git_repo():
         try:
