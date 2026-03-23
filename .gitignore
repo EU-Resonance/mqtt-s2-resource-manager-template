@@ -5,7 +5,7 @@
 
 # local config / secrets
 environment.env
-*resources/config.json
+**/resources/config.json
 *.local
 
 # certs / keys
