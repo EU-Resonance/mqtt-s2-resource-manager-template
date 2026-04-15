@@ -1,0 +1,48 @@
+services:
+
+  {% if cookiecutter.run_tests == 'yes' %}
+  mqtt_broker:
+    container_name: mqtt_broker
+    image: eclipse-mosquitto:2.0.15
+    ports:
+      - 1883:1883
+    volumes:
+      - ../mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+  {% endif %}
+
+  {{ cookiecutter.class_prefix }}_system_rm:
+    container_name: {{ cookiecutter.class_prefix }}_system_rm
+    image: {{ cookiecutter.prefix }}_interface
+    ports:
+      - 127.0.0.1:5002:5002
+    build:
+      context: ..
+      dockerfile: {{ cookiecutter.prefix }}_rm_interface/Dockerfile
+    env_file:
+      - ../environment.env
+
+  {% if cookiecutter.run_tests == 'yes' %}
+  cem_interface:
+    container_name: cem_interface
+    image: harbor.need.energy/resonance/cem_interface:latest
+    ports:
+      - 127.0.0.1:5000:5000
+    env_file:
+      - ../environment.env
+    networks:
+      - cem_network
+
+  cem_visu:
+    container_name: visualization
+    image: harbor.need.energy/resonance/cem_visu:latest
+    ports:
+      - 127.0.0.1:5001:5001
+    env_file:
+      - ../environment.env
+    networks:
+      - cem_network
+
+networks:
+  cem_network:
+    driver: bridge
+    {% endif %}

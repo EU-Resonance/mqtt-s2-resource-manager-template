@@ -3,6 +3,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import uuid
+
 workspace_root = Path.cwd().parent
 
 # =============== Move pyproject.toml =============
@@ -28,7 +30,7 @@ def move_up(project_dir: Path, filename: str) -> None:
 
 
 project_dir = Path.cwd()  # cookiecutter runs hooks in the generated project directory
-print(f"Post-gen: project_dir = {project_dir}")
+# print(f"Post-gen: project_dir = {project_dir}")
 
 for fname in FILES_TO_MOVE_UP:
     move_up(project_dir, fname)
@@ -70,6 +72,7 @@ except subprocess.CalledProcessError:
 
 
 # ============= Creating new branch =============
+print(50 * "-" + "\n")
 
 project_root = Path.cwd()
 
@@ -104,13 +107,19 @@ if "{{ cookiecutter.create_new_branch }}" == "yes":
 
     # ============= Cleanup template artifacts =============
 
+    template_dir = project_root / "{{cookiecutter.package_name}}"
+    if template_dir.exists():
+        shutil.rmtree(template_dir)
+
+    cookiecutter_file = project_root / "cookiecutter.json"
+    if cookiecutter_file.exists():
+        cookiecutter_file.unlink()    
+        
     hooks_dir = project_root / "hooks"
     if hooks_dir.exists():
         shutil.rmtree(hooks_dir)
 
-    cookiecutter_file = project_root / "cookiecutter.json"
-    if cookiecutter_file.exists():
-        cookiecutter_file.unlink()
+
 
     # ============= Cleaning the code =============
 
@@ -135,11 +144,66 @@ if "{{ cookiecutter.create_new_branch }}" == "yes":
 # ============= Runnign basic tests =============
 
 if "{{ cookiecutter.run_tests }}" == "yes":
-    r = subprocess.run(
-        [sys.executable, "-m", "pytest", "-q"], cwd=workspace_root, check=False
+    
+    subprocess.run(["uv", "sync", "--group", "dev"], cwd=workspace_root, check=True) 
+    
+    r = subprocess.run(["uv", "run", "pytest", "-q"], cwd=workspace_root, check=False
     )
     if r.returncode != 0:
         print("Tests failed. Generation completed, but please fix before using.")
 
+    print("✓ Basic tests executed.")
+    print(50 * "-" + "\n")
+
+    
+    """
+    Preparing docker compose test setup 
+    #for testing connection to a CEM (e.g. the visualization container)
+    """
+    
+    print("Setting up test environment for CEM connection tests...")
+    project_dir_res = Path.cwd() / "resources"
+    project_dir = Path.cwd().parent
+    
+    # environment.env
+    env_file = project_dir / "environment.env"
+    if env_file.exists():
+        print("environment.env exists, skipping")
+    else:
+        env_file.write_text(
+            f"""TZ=Europe/Berlin
+MQTT_SERVER=host.docker.internal
+MQTT_PORT=1883
+CEM_ID={uuid.uuid4()}
+"""
+    )   
+
+    # mosquitto.conf
+    conf_file = project_dir / "mosquitto.conf"
+    if conf_file.exists():
+        print("mosquitto.conf exists, skipping")
+    else:
+        conf_file.write_text("""listener 1883
+allow_anonymous true
+""")
+
+    # resources/config.json
+    src = project_dir_res / "config.example.json"
+    dst = project_dir_res / "config.json"
+
+    if not src.exists():
+        print("config.example.json not found, skipping")
+
+    if dst.exists():
+        print("config.json already exists, skipping")
+
+    src.rename(dst)
+    
+    print("✓ Test environment setup ready.")
+    print("You can now run 'docker compose -f {{cookiecutter.package_name}}/compose.yaml up -d' to test the interface.")
+    print("Visit http://localhost:5001 to monitor the data received by a CEM.\n")
+
+
 
 print("Post-gen: done.")
+print(50 * "-" + "\n")
