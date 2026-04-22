@@ -6,6 +6,7 @@
     "device_role": "producer:electricity",
     "available_control_types": "pebc, ombc, ppbc, frbc, ddbc, none",
     "measurement": "L1, L2, L3, 3phase, temperature, heat_flow_rate", 
+    "use_sri": "mqtt, none",
     "with_model": ["no", "yes"],
     "create_new_branch": ["no", "yes"],
     "run_tests": ["no", "yes"]
