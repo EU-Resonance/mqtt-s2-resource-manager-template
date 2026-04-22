@@ -1,13 +1,13 @@
 # S2 Resource Manager SDK
 
-This repository provides a Python framework for implementing EN‑50491‑12‑2 (**S2 Standard**) compliant Resource Managers (**RM**) interfaces for any device (PV, heat pump, storage, EV charger, …) that enables communication with a Central Energy Manager (**CEM**) via MQTT.  
+This repository provides a Python framework for implementing EN‑50491‑12‑2 (S2 Standard) compliant Resource Managers (RM) interfaces for any device (PV, heat pump, storage, EV charger, …) that enables communication with a Central Energy Manager (CEM) via MQTT.  
 
 
 
 #### Acknowledgements 
 This work is based on the work of the RESONANCE research project (Grant Agreement no. 101096200) and will be advanced within the INDEPENDENT project (Grant Agreement no. 101172675). Native S2 data classes are provided by the `s2-python` [project](`https://github.com/flexiblepower/s2-python`).
 
-A documentation of the **S2 Standard** and support in using it to define flexibility can be found under https://docs.s2standard.org/
+A documentation of the S2 Standard and support in using it to define flexibility can be found under https://docs.s2standard.org/
 
 #### Prerequisites 
 To work with this repository you only need **Python >= 3.10** and **`uv`**, a fast Python package manager.  Please follow the official installation instructions for your platform: https://docs.astral.sh/uv/.
@@ -18,7 +18,7 @@ To work with this repository you only need **Python >= 3.10** and **`uv`**, a fa
 
 ## Quick Start
 
-This **End-to-End Test Setup** creates a RM container from this repo that offers all five Control Types. The second command pulls external images for a CEM interface and a mosquitto broker to locally showcase the communication.
+This **End-to-End Test Setup** creates an RM container from this repo that offers all five Control Types. The second command pulls external images for a CEM interface and a mosquitto broker to locally showcase the communication.
 
 ```
 uvx cookiecutter . --no-input run_tests=yes
@@ -27,7 +27,7 @@ docker compose -f xx_rm_interface/compose.yaml up -d
 
 
 
-> **Note:** Only **PEBC** is configured in this test (placeholder values), so you will receive validation errors for **OMBC**, **PPBC**, **FRBC** and **DDBC** unless you configure them manually.
+> **Note:** Only PEBC is configured in this test (placeholder values), so you will receive validation errors for OMBC, PPBC, FRBC and DDBC unless you configure them manually.
 
 ## SDK Architecture
 
@@ -38,7 +38,7 @@ The SDK provides:
 - interfaces for power measurements `power_data_connector.py` and resource model (forecasting) `model_interface.py`
 - a cookiecutter template to bootstrap new RM implementations
 
-The `common/` package is intentionally device‑agnostic and should not contain device‑specific logic. All resource specific implementation is defined in the child classes, that are generated in the respective interface folder.
+The `common/` package is intentionally device‑agnostic and should not contain device‑specific logic. All resource-specific implementation is defined in the child classes, that are generated in the respective interface folder.
 
 ```
 root/
@@ -58,18 +58,30 @@ root/
 ```
 
 ### Example PV System
-An example implementation for a PV system is available in the `device/pv` branch, which demonstrates:
+An example implementation for a PV system RM is available in the `device/pv` branch, which demonstrates
 - device configuration in `pv_rm_interface/pv_system.py`
 - measurement ingestion (reading csv data) in `pv_rm_interface/pv_power_adapter.py`
 - forecast generation in `pv_rm_interface/pv_model_caller.py`
-- S2-compliant message exchange and control type activation with a CEM
 
-### Using the Interface in Your Codebase
 
-For a deeper integration, you can install the generated device-specific part as a Python package in any environment using
+### Using as Container or as Package
+
+The generated resource-specific files come with a `compose.yaml`, which enables a quick setup via docker. This is especially useful if your power measurements or forecasts can be fetched from an API or database.
 
 ```
-uv pip install -e .
+docker compose -f <prefix>_rm_interface/compose.yaml up -d --build
+```
+
+You may also start the service directly, using
+```
+uv run --env-file environment.env python -m <prefix>_rm_interface.main
+```
+In both cases you have to rename `environment.env.example` to `environment.env` and configure it with your MQTT connection details.
+
+
+For a deeper integration, you can also install the interface as a Python package in your environment using 
+```
+pip install -e .
 ```
 This allows you to import it in your codebase and use its helper functions from within your own project or RM controller.
 
@@ -156,7 +168,7 @@ To test the Resource Manager interface, an MQTT-based CEM counterpart is needed.
 
 `   [RM]   <-- S2/JSON -->   [MQTT Broker]  <-- S2/JSON-->  [CEM]`
 
-To establish the connection with a CEM, the current implementation looks for a CEM's _alive-message_ published to the connected mqtt-broker under the topic
+To establish the connection with a CEM, the current implementation looks for a CEM's _alive-message_ published to the connected MQTT broker under the topic
 `/resonance/cem/{cem_uuid}` :
 
 ```JSON
@@ -166,7 +178,7 @@ To establish the connection with a CEM, the current implementation looks for a C
 }
 ```
 
-A (dummy) CEM interface which emulates this behaviour and responds to the RM messages and can be set up by
+A dummy CEM interface that emulates this behaviour and responds to RM messages can be set up with
 ```
 docker run -d \
   --name cem_interface \
