@@ -20,7 +20,7 @@ To work with this repository you only need **Python >= 3.10** and **`uv`**, a fa
 
 This **End-to-End Test Setup** creates an RM container from this repo that offers all five Control Types. The second command pulls external images for a CEM interface and a mosquitto broker to locally showcase the communication.
 
-```
+```bash
 uvx cookiecutter . --no-input run_tests=yes
 docker compose -f xx_rm_interface/compose.yaml up -d
 ```
@@ -58,32 +58,70 @@ root/
 ```
 
 ### Example PV System
-An example implementation for a PV system RM is available in the `device/pv` branch, which demonstrates
-- device configuration in `pv_rm_interface/pv_system.py`
-- measurement ingestion (reading csv data) in `pv_rm_interface/pv_power_adapter.py`
-- forecast generation in `pv_rm_interface/pv_model_caller.py`
+An example for the generated files of a PV system RM is available in the `device/pv` branch:
+
+- `pv_system.py`: defines `PvDevice`, extending `Device` from `device.py`
+- `pv_power_adapter.py`: defines `PvDataConnector`, extending `PowerDataConnector` from `power_data_connector.py`
+- `pv_model_caller.py`: defines `PvForecastModel`, extending `PowerForecastInterface` from `model_interface.py`
+- `main.py`: initiating discovery, data transmission, and response handling
 
 
-### Using as Container or as Package
+### Use as Container or Package
 
 The generated resource-specific files come with a `compose.yaml`, which enables a quick setup via docker. This is especially useful if your power measurements or forecasts can be fetched from an API or database.
 
-```
+```bash
 docker compose -f <prefix>_rm_interface/compose.yaml up -d --build
 ```
 
 You may also start the service directly, using
-```
+```bash
 uv run --env-file environment.env python -m <prefix>_rm_interface.main
 ```
 In both cases you have to rename `environment.env.example` to `environment.env` and configure it with your MQTT connection details.
 
 
-For a deeper integration, you can also install the interface as a Python package in your environment using 
+For a deeper integration, you can also install the RM interface as a Python package in your existing environment using 
 ```
 pip install -e .
 ```
-This allows you to import it in your codebase and use its helper functions from within your own project or RM controller.
+This allows you to import it in your codebase and use its helper functions from within your own project or RM controller, as shown below for a heat pump example.
+
+
+```python
+import threading
+from s2python.common import ControlType
+from hp_rm_interface.hp_system import HpSystem
+
+def handle_callbacks(callback, hp_device):
+  """Callback function for handling the CEM control and activation messages"""
+
+  if isinstance(callback, ControlType):
+    hp_device.activeControlType = callback
+    hp_device.sendSystemDescription()
+
+# Create Heat Pump RM instance
+hp_device = HpSystem()
+
+# Start the device with CEM discovery
+hp_device.startDiscovery(
+  config=hp_device.mqttCEM,
+    onCemDiscovered=lambda cemUUID: hp_device.startRmSubscription(
+        hp_device.mqttCEM,
+        rmCallback=lambda callback: handle_callbacks(callback, hp_device),
+    ),
+)
+
+thread = threading.Thread(
+  target=hp_device.startDataTransmission,
+  args=(
+    hp_device.mqttCEM.get("timezone"), 
+    60    # frequency of power measurement update in seconds
+    ),  
+  daemon=True,
+)
+thread.start()
+```
 
     
 
@@ -91,7 +129,7 @@ This allows you to import it in your codebase and use its helper functions from 
 
 From the repository root, use cookiecutter to start the process
 
-```
+```bash
 uvx cookiecutter .
 ```
 
@@ -144,13 +182,13 @@ The current implementation assumes **plain MQTT over TCP** by default, but suppo
 
 With the generated `pyproject.toml` you can wrap all dependencies in a virtual environment by using
 
-```
+```bash
 uv sync
 ```
 `uv` creates a local `.venv/` folder, in which all dependencies from `pyproject.toml` are installed
 
 If additional libraries are needed (typically for forecast models), you can either add them manually to `pyproject.toml` or use `uv add <package-name>` before building the Docker image.
-```
+```bash
 uv add keras tensorflow sklearn
 ```
 
@@ -179,7 +217,7 @@ To establish the connection with a CEM, the current implementation looks for a C
 ```
 
 A dummy CEM interface that emulates this behaviour and responds to RM messages can be set up with
-```
+```bash
 docker run -d \
   --name cem_interface \
   -p 127.0.0.1:5000:5000 \
