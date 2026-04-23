@@ -2,6 +2,7 @@ import logging
 import threading
 import time
 
+from datetime import datetime, timedelta, timezone
 from s2python.common import ControlType
 
 from pv_rm_interface.pv_system import PvSystem
@@ -9,9 +10,9 @@ from pv_rm_interface.pv_system import PvSystem
 
 def main():
     logging.basicConfig(level=logging.INFO)
-    logging.info(" >> ======= Start of PV system RM ======= ")
+    logging.info(" >> ======= Start of My Pv System RM ======= ")
 
-    # Create PV system RM
+    # Create My Pv System RM
     pv_device = PvSystem()
     rmUUID = str(pv_device.rmUUID)
     logging.info(f" >> with UUID: {rmUUID} \n ")

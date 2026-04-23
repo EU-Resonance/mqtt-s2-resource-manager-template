@@ -1,224 +1,168 @@
-## S2 Resource Manager SDK
 
-This repository hosts the **generic Resource Manager (RM) SDK** for building EN‑50491‑12‑2 (S2) compliant MQTT Resource Managers for any device (PV, heat pump, storage, EV charger, …).  
+# Example PV System
+This branch provides an example output of the cookiecutter generation process from the `main` branch. It documents each step so you can replicate it for other Resource Manager (RM) interfaces.
 
-All S2 data classes are provided by the `s2-python` [package](`https://github.com/flexiblepower/s2-python`). The SDK wraps those types and adds MQTT transport, topic naming and basic validation.
-##### Prerequisites 
-To work with this repository you only need **`uv`**, a fast Python package manager.  Please follow the official installation instructions for your platform: https://docs.astral.sh/uv/
+ 1. Code generation based on 10 questions
+ 2. Edit `environment.env` and `config.json`
+ 3. Test against CEM interface
+ 4. Extend the code and customize to your flexibility
 
-Also Python >= 3.10
+## 1. Generation Process
 
+From the repository root, use cookiecutter to start the process:
 
-### Quick Start
-
-- Install **uv** (e.g. `pip install uv`)
-- `uvx cookiecutter .`
-   - Answer questions ➜ Code is generated
-- `uv sync` from the project root containing now:
-   - common/
-   - <prefix>_rm_interface/ (generated)
-   - pyproject.toml (generated)
-   - uv.lock
-- Copy `environment.env.example` to `environment.env` and edit `MQTT_SERVER=` and `MQTT_PORT=`
-- `uv run --env-file environment.env python -m <prefix>_rm_interface.main`
-- or using docker
-  `<prefix>_rm_interface/$ docker compose up -d --build`
-
-If a MQTT broker is running at the given endpoint, the RM will connect and automatically provide S2 information to a CEM.
-
-
-
----
-## Generate a new Resource Manager (RM)
-
-From the repository root, use cookiecutter 
-
-```
+```bash
 uvx cookiecutter .
 ```
 
-You will be asked questions related to the S2 standard about available control types, measurements, roles (see s2standard.org for more info) and if your resource provides a model for generating and providing power forecasts (yes/no).
+Then the following questions were answered:
 
-Cookiecutter will generate the skeleton of your RM code in a new `<prefix>_rm_interface` project folder to connect your device to any MQTT-based Customer Energy Manager (CEM).
-
-
-### MQTT broker
-
-To test the communication with a local MQTT broker like Eclipse Mosquitto (https://hub.docker.com/_/eclipse-mosquitto), the easiest way is creating a minimal `mosquitto.conf`
-``` conf
-listener 1883
-allow_anonymous true
+```bash
+  [1/10] name (My Device): My Pv System
+  [2/10] prefix (xx): pv
+  [3/10] package_name (pv_rm_interface): 
+  [4/10] class_prefix (Pv): 
+  [5/10] device_role (producer:electricity): producer:electricity
+  [6/10] available_control_types (pebc, ombc, ppbc, frbc, ddbc, none): pebc
+  [7/10] measurement (L1, L2, L3, 3phase, temperature, heat_flow_rate): 3phase
+  [8/10] Select with_model
+    1 - no
+    2 - yes
+    Choose from [1/2] (1): 2
+  [9/10] Select create_new_branch
+    1 - no
+    2 - yes
+    Choose from [1/2] (1): 2
+  [10/10] Select run_tests
+    1 - no
+    2 - yes
+    Choose from [1/2] (1): 2
 ```
-and then run
-```
-docker run -d --name mqtt-broker -p 1883:1883 eclipse-mosquitto
-```
 
-Create an `environment.env` file in the project root with the connection details of your broker e.g.
+After that, the code is auto-formatted to fill cookiecutter gaps and basic tests are run. Finally, device-specific files are created in `pv_rm_interface/`:
 
-```environment.env
+- `pv_system.py`: defines `PvDevice` as the device instance, containing all **ResourceManagerDetails** information and managing the power adapter and model interface.
+- `pv_power_adapter.py`: defines `PvDataConnector`, which provides the `read_current_power()` method to define the source of power measurement data.
+- `pv_model_caller.py`: defines `PvForecastModel`, which provides the `get_forecast()` method to calculate a time-series power forecast (in this case _generation_) that is called by the `PvDataConnector`.
+- `main.py`: initiating discovery, data transmission, and response handling.
+- `Dockerfile` and `compose.yaml`: Enable containerized deployment/testing of this service
+- `resources/config.json`: Place to provide resource-specific secrets (endpoints, API tokens, etc.)
+
+The template file `cookiecutter.json` as well as the folders `{{ cookiecutter.package_name }}/` and `hooks/` are not needed anymore and were removed from the new `device/pv` branch.
+
+### 2. Configuration
+
+Next, `environment.env.example` was renamed to `environment.env`, where you can provide your connection details. For testing with Docker Compose, it was set to:
+```
 TZ=Europe/Berlin
 MQTT_SERVER=host.docker.internal
 MQTT_PORT=1883
 ```
 
-### Secure MQTT (TLS)
+To configure the two main interfaces to your device, `read_current_power()` and `get_forecast()`, you may need site-specific inputs. These can be provided in `resources/config.json` (in `.gitignore`), for example:
 
-The current implementation assumes **plain MQTT over TCP** by default, but supports enabling TLS via configuration.
-
-- **Port selection**
-  - The MQTT port is taken from `MQTT_PORT` (environment) or the `port` field in the `config` dict.
-  - If TLS is used, the typical port is **8883**; otherwise the default is **1883**.
-- **TLS status**
-  - TLS is configured in `common/messaging.py` based on:
-    - `ca_cert` / `MQTT_CA_CERT`
-    - `certfile` / `MQTT_CERTFILE`
-    - `keyfile` / `MQTT_KEYFILE`
-  - If any of these are provided or the port is `8883`, TLS will be enabled using `ssl.PROTOCOL_TLS_CLIENT`.
-- **Certificate fields**
-  - `MQTT_CA_CERT` / `ca_cert`: path to a CA certificate bundle.
-  - `MQTT_CERTFILE` / `certfile`: path to the client certificate.
-  - `MQTT_KEYFILE` / `keyfile`: path to the client private key.
-  - For mutual TLS, both `certfile` and `keyfile` must be provided.
-
-
-### Run RM via Docker
-
-The container is started via docker compose in the project folder
-```
-cd <prefix>_rm_interface
-docker compose up -d --build
+```JSON
+{
+    "pv_details": {
+        "lon": "11.59",
+        "lat": "48.17",
+        "peak_power": "50",
+        "power_api": "https://mysolarapi.inverter"
+    },
+    "pv_model": {
+        "weather_api": "https://some-weather-service.io/forecast",
+        "model_type": "lstm",
+        "stepsize": "15min",
+        "horizon": "24"
+    }
+}
 ```
 
-### Run manually
+The `"pv_details"` and `"pv_model"` values are automatically passed to the power adapter and model interface instances, respectively, and can be used there to implement, for example, a basic API call in `read_current_power()`:
 
-You can also manually run the script using
-```
-uv run python -m <prefix>_rm_interface.main
-```
-or by using the sandbox test script to try out things
-```
-python -m <prefix>_rm_interface.test.cem_onboarding
-```
+```python
+import requests
 
-### Testing
+def __init__(self, pv_details,...):
+  ...
+  self.api_connection = pv_details.get('power_api')
 
-For usign `pytest` run 
-```
-uv run pytest <prefix>_rm_interface/.
-```
-
-### Communication with a CEM
-
-`   [RM]   <-- S2/JSON -->   [MQTT Broker]  <-- S2/JSON-->  [CEM]`
-
-To test all functionalities, a MQTT-based counter-interface is needed.
-This will be provided as docker image in a harbor registry soon.
-
----
-
-# Customize your interface
-
-With respect to the questionnaire, the generated files will be best suited to your application and most of the logic is additionally provided by the SDK in the `common/` files 
-
-However, the final link to your resource (read power data / write control commands) has to come from your custom implementation. 
-
-You should customize the generated code as depicted in the following table
-
-| Generated files                 | What you have to add                                                                                                                                                                                                                                    |
-| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `<prefix>_rm_interface/`        |                                                                                                                                                                                                                                                         |
-| ├──`<prefix>_power_adapter.py`  | How measurements / power consumption data is provided<br><br>For the chosen control types, you have to provide the corresponding **flexibility information in form of S2 data classes**.<br><br>See https://docs.s2standard.org/docs/welcome/ for help. |
-| ├──`resources/config.json`      | *(Optional, local only)* Runtime configuration such as API endpoints, model input and resource-specific parameters. **Do not commit this file**.                                                                                                                                                       |
-| ├──`<prefix>_system.py`         | _(Optional)_ Get parameters from your `config.json`and pass them to the `power_adapter` and `model_caller` (e.g. forecast horizon)                                                                                                                      |
-| ├──`<prefix>_model_caller.py`   | *(Optional)* If you have a resource model, that can predict its power consumption, add this here.                                                                                                                                                       |
-| ├──`test/cem_onboarding.py`<br> | *(Optional)* Use/Change for testing                                                                                                                                                                                                                     |
-| └──`main.py`                    |                                                                                                                                                                                                                                                         |
-
-
-##### Create / update the virtual environment
-
-With the generated `pyproject.toml` you can wrap all dependencies in a virtual environment by using
-
-```
-uv sync
-```
-`uv` creates a local `.venv/` folder, with all dependencies from `pyproject.toml` are installed
-
-If additional libraries are needed (typically for forecast models), you can either add them manualy to `pyproject.toml` or use `uv add <package-name>` before building the docker image.
-```
-uv add keras tensorflow sklearn
+def read_current_power(self) -> float:
+  try:
+    response = requests.get(self.api_connection)
+    data = response.json()
+    value = data["main"]["currentPower"]
+    return value
 ```
 
-In General `uv` automatically uses the correct virtual environment when running commands.  
-Manual activation is usually not required, but if you want to activate the `.venv` manually, use 
-- `.venv\Scripts\Activate` *(Windows*) 
-- `source .venv/bin/activate` *(macOS / Linux*) 
-- `deactivate` to leave the virtual environment.
-## Using the interface in your codebase
+> **Note:** [Pull Request #1](https://github.com/EU-Resonance/mqtt-s2-resource-manager-template/pull/1) will offer a new way to semantically fetch resource data via an SAREF4ENER-based ontology using MQTT.
 
-For a deeper integration, you can also install this device-specific part as a python package in any environment
+In the same way, you can modify `PvForecastModel.get_forecast()` and implement or link your forecast model (providing forecasts is optional).
+
+
+### 3. Test Setup
+
+If `run_tests=yes` is chosen in step 1, the generated `compose.yaml` contains a broker, a CEM interface, and a visualization service for testing. You can start the test setup with:
+
+```bash
+docker compose -f pv_rm_interface/compose.yaml up -d
 ```
-uv pip install -e .
+(Older versions of Docker need to use `docker-compose ...` instead of `docker compose`.)
+
+Then go to [http://localhost:5001](http://localhost:5001) and monitor the data received by a CEM.
+
+> **Note:** PEBC is configured in this test (placeholder values), so you can directly start and test the system using `docker compose -f pv_rm_interface/compose.yaml up -d`.
+
+
+### 4. Customization
+
+The most resource-specific part will be the choice and configuration of control types. Have a look at [the S2 Standard website](https://s2standard.org/) for guidance on this.
+
+In the current codebase, this is defined in `provide_flexibility_information()` in `PvDataConnector`. Since `pebc` was chosen in step 1, a PEBC flexibility information example is already configured after generation and can be adjusted according to your needs.
+
+For other Control Type descriptions, only the skeleton is provided, since more in-depth knowledge of the resource and the S2 data model is needed.
+
+
+### Integration as a Package
+
+For deeper integration, you can also install the RM interface as a Python package in your existing environment using
 ```
-In that way, you can import in your code and use all of its logic and helper functions from within your own project or resource controller.
-
-
-## Core SDK Concepts
----
-```plaintext
-sampleRMs/
-├── common/                      ← generic SDK: S2 + MQTT building blocks
-│   ├── device.py                ← base `Device` (RM) abstraction
-│   ├── power_data_connector.py  ← data adapter base + S2 helpers
-│   ├── model_interface.py       ← forecasting/model interface
-│   ├── rmClient.py              ← MQTT client + topic wiring
-│   └── messaging.py             ← Paho MQTT integration
-│
-├── cookiecutter.json            # RM project template configuration
-├── hooks/                       # Cookiecutter validation & setup logic
-│   ├── pre_gen_project.py
-│   └── post_gen_project.py
-│
-└── <prefix>_rm_interface/     # e.g. hp_rm_interface, pv_rm_interface, ...
+pip install -e .
 ```
-
-- **`common/device.py`**  
-  Base class representing a single S2 Resource Manager. Subclasses must provide:
-  - `get_rm_details()` → returns `ResourceManagerDetails`
-  - `get_power_data_connector()` → returns a `PowerDataConnector`
-  - `get_model()` → returns a `PowerForecastInterface` (optional, only if forecasting is provided)
-- **`common/power_data_connector.py`**  
-  Abstracts how **measurements** and **forecasts** are obtained from a device or data source and converted into S2 messages. It provides helpers to build:
-  - `PowerValue`
-  - `PowerForecastValue`
-  - `PowerForecastElement`
-  - `Duration`
-- **`common/model_interface.py`**  
-  Defines the contract for forecasting models. Any implementation (rule‑based, ML model, external service) can be plugged in as long as it adheres to this interface.
+This allows you to import it in your codebase, similar to `pv_rm_interface/main.py`, and use its methods from within your own project or RM controller, as shown below.
 
 
-The `common/` package is intentionally device‑agnostic and should **not** contain device‑specific logic. Each concrete RM instance is implemented in its own `<device>_rm_interface/` folder and ideally uses a dedicated feature branch 
+```python
+import threading
+from s2python.common import ControlType
+from pv_rm_interface.pv_system import PvSystem
 
+def handle_callbacks(callback, pv_device):
+  """Callback function for handling the CEM control and activation messages"""
 
----
+  if isinstance(callback, ControlType):
+    pv_device.activeControlType = callback
+    pv_device.sendSystemDescription()
 
+# Create PV RM instance
+pv_device = PvSystem()
 
-## MQTT & Message Flow (Conceptual)
+# Start the device with CEM discovery
+pv_device.startDiscovery(
+  config=pv_device.mqttCEM,
+    onCemDiscovered=lambda cemUUID: pv_device.startRmSubscription(
+        pv_device.mqttCEM,
+        rmCallback=lambda callback: handle_callbacks(callback, pv_device),
+    ),
+)
 
-- RMs act as **clients** to a shared MQTT broker and use S2‑shaped JSON payloads.
-- Onboarding typically starts with an S2 `ResourceManagerDetails` message from the RM to the CEM.
-- The CEM responds with a `responseMessage` on a dedicated topic using the UUIDs of RM and CEM.
-- Measurements and forecasts are published on resource‑specific topics to avoid feedback loops and self‑subscriptions.
-
-
-## Troubleshooting
-- Validation errors from `s2python`: ensure you use `PowerForecastValue` (with `value_expected`) for forecasts, and `Duration(root=int_ms)` for element durations.
-- Feature shape/dtype issues: the PV model pipeline coerces dataframe columns to numeric and enforces the expected 12-feature order prior to inference.
-- Forecast length vs. element duration: the per-element duration is `total_horizon / len(forecast_values)`.
-
----
-
-## License
-
-This project is licensed under the Apache License 2.0. See the `LICENSE` file for details.
+thread = threading.Thread(
+  target=pv_device.startDataTransmission,
+  args=(
+    pv_device.mqttCEM.get("timezone"), 
+    60    # frequency of power measurement update in seconds
+    ),  
+  daemon=True,
+)
+thread.start()
+```

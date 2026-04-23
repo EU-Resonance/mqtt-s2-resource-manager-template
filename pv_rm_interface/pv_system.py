@@ -1,24 +1,26 @@
-import json
+from datetime import timedelta
 import threading
 import uuid
-from datetime import timedelta
+import json
 from typing import List
 
+from common.device import Device
+from common.power_data_connector import PowerDataConnector
+from common.model_interface import PowerForecastInterface
+from pv_rm_interface.pv_power_adapter import PvDataConnector
+
+from pv_rm_interface.pv_model_caller import PvForecastModel
+
+
 from s2python.common import (
-    Commodity,
-    CommodityQuantity,
-    ControlType,
-    Currency,
     ResourceManagerDetails,
     Role,
     RoleType,
+    ControlType,
+    Currency,
+    CommodityQuantity,
+    Commodity,
 )
-
-from common.device import Device
-from common.model_interface import PowerForecastInterface
-from common.power_data_connector import PowerDataConnector
-from pv_rm_interface.pv_model_caller import PvForecastModel
-from pv_rm_interface.pv_power_adapter import PvDataConnector
 
 
 class PvSystem(Device):
@@ -27,7 +29,7 @@ class PvSystem(Device):
 
         # S2 specific configurations
         self.availableControlTypes = [
-            ControlType.NOT_CONTROLABLE,
+            ControlType.POWER_ENVELOPE_BASED_CONTROL,
         ]
         self.measurements = [
             CommodityQuantity.ELECTRIC_POWER_3_PHASE_SYMMETRIC,
@@ -57,7 +59,7 @@ class PvSystem(Device):
             message_type="ResourceManagerDetails",
             message_id=uuid.uuid4(),
             resource_id=self.rmUUID,
-            name="PV system",
+            name="My Pv System",
             roles=[
                 Role(
                     role=RoleType.ENERGY_PRODUCER,

@@ -2,19 +2,42 @@
 # and to bring it in the correct format
 
 import logging
-from collections.abc import Iterable
-from datetime import timedelta, datetime
+import uuid
+
+from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 from typing import List
-
+from collections.abc import Iterable
 import pandas as pd
-from s2python.common import (
-    PowerForecastElement,
-    PowerValue,
-)
+
+from common.power_data_connector import PowerDataConnector
 
 from common.model_interface import PowerForecastInterface
-from common.power_data_connector import PowerDataConnector
+
+from s2python.pebc import (
+    PEBCPowerConstraints,
+    PEBCEnergyConstraint,
+    PEBCPowerEnvelopeLimitType,
+    PEBCPowerEnvelopeConsequenceType,
+    PEBCAllowedLimitRange,
+)
+from s2python.ombc import OMBCSystemDescription, OMBCOperationMode
+from s2python.frbc import (
+    FRBCSystemDescription,
+    FRBCActuatorDescription,
+    FRBCStorageDescription,
+)
+from s2python.ppbc import PPBCPowerProfileDefinition, PPBCPowerSequenceContainer
+from s2python.ddbc import DDBCSystemDescription, DDBCActuatorDescription
+from s2python.common import (
+    PowerValue,
+    PowerForecastValue,
+    CommodityQuantity,
+    PowerForecastElement,
+    NumberRange,
+    Transition,
+    Timer,
+)
 
 
 class PvDataConnector(PowerDataConnector):
@@ -29,10 +52,11 @@ class PvDataConnector(PowerDataConnector):
 
         # Read details to access current power from a database or api
         """
-            self.mqtt_connection = pv_details.get('mqtt_connection')
-            self.db_connection = pv_details.get('db_connection')
-            self.api_connection = pv_details.get('api_connection')
+        self.mqtt_connection = pv_details.get('mqtt_connection')
+        self.db_connection = pv_details.get('db_connection')
+        self.api_connection = pv_details.get('api_connection')
         """
+
         self.pv_details = pv_details
         
         df = pd.read_csv(self.pv_details.get('path_to_data'), sep=";", decimal=",")
@@ -40,10 +64,9 @@ class PvDataConnector(PowerDataConnector):
         df["time_key"] = df["DateTime"].dt.strftime("%m-%d %H:%M")
         self.datasource = df
 
-
     def read_current_power(self) -> float:
-        """Get the current power from data source"""
-
+        """Get historic power data from CSV"""
+        
         now = datetime.now(ZoneInfo(self.timezone)).replace(
             minute=0, second=0, microsecond=0
         )
@@ -79,9 +102,7 @@ class PvDataConnector(PowerDataConnector):
     # returns the power forecast values for a given horizon
     def get_power_forecast_elements(self) -> List[PowerForecastElement]:
 
-        power_forecast = self.model.get_forecast(
-            start = datetime.now(ZoneInfo(self.timezone))
-            )
+        power_forecast = self.model.get_forecast()
         elements: List[PowerForecastElement] = []
 
         if power_forecast is None or not isinstance(power_forecast, Iterable):
@@ -132,3 +153,45 @@ class PvDataConnector(PowerDataConnector):
         Here the flexibility has to be defined for the activated control type.
         Dummy values are only provided for PEBC
         """
+
+        starttime = datetime.now(ZoneInfo(self.timezone))
+
+        logging.info(" >> [RM] Calculating PEBC Flexibility ")
+        try:
+            ll = PEBCAllowedLimitRange(
+                commodity_quantity=self.measurements[0],
+                limit_type=PEBCPowerEnvelopeLimitType.LOWER_LIMIT,
+                range_boundary=NumberRange(start_of_range=0.0, end_of_range=0.5),
+                abnormal_condition_only=True,
+            )
+
+            ul = PEBCAllowedLimitRange(
+                commodity_quantity=self.measurements[0],
+                limit_type=PEBCPowerEnvelopeLimitType.UPPER_LIMIT,
+                range_boundary=NumberRange(start_of_range=4.0, end_of_range=10.0),
+                abnormal_condition_only=False,
+            )
+
+            pv_device.pebc_pc = PEBCPowerConstraints(
+                message_type="PEBC.PowerConstraints",
+                message_id=uuid.uuid4(),
+                id=uuid.uuid4(),
+                valid_from=starttime,
+                valid_until=starttime + timedelta(minutes=60),
+                consequence_type=PEBCPowerEnvelopeConsequenceType.DEFER,
+                allowed_limit_ranges=[ll, ul],
+            )
+
+            pv_device.pebc_ec = PEBCEnergyConstraint(
+                message_type="PEBC.EnergyConstraint",
+                message_id=uuid.uuid4(),
+                id=uuid.uuid4(),
+                valid_from=starttime,
+                valid_until=starttime + timedelta(minutes=60),
+                upper_average_power=20,
+                lower_average_power=20,
+                commodity_quantity=pv_device.measurements[0],
+            )
+
+        except Exception as e:
+            logging.error(" !! Error defining PEBC: %s", str(e))

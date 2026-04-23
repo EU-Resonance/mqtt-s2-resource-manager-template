@@ -2,14 +2,13 @@ import json
 import uuid
 from typing import Any, Dict
 
+from common.rmClient import RMClient
 from s2python.common import (
     ControlType,
     ResourceManagerDetails,
     Role,
     SelectControlType,
 )
-
-from common.rmClient import RMClient
 
 
 class DummyRM(RMClient):

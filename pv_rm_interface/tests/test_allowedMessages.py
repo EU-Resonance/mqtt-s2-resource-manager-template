@@ -2,9 +2,8 @@ import json
 import uuid
 
 import pytest
-from s2python.common import ReceptionStatus, ReceptionStatusValues
-
 from common.allowedMessages import Payload
+from s2python.common import ReceptionStatus, ReceptionStatusValues
 
 
 def test_from_json_valid_reception_status():

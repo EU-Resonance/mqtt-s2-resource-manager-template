@@ -1,10 +1,9 @@
-import logging
-import threading
 import time
-
+import threading
 import pytz
-from s2python.common import ControlType
+import logging
 
+from s2python.common import ControlType
 from pv_rm_interface.pv_system import PvSystem
 
 logging.basicConfig(level=logging.INFO)

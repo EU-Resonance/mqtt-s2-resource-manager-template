@@ -1,8 +1,6 @@
 import logging
-from datetime import timedelta, datetime
-from zoneinfo import ZoneInfo
-
 import pandas as pd
+from datetime import datetime, timedelta
 
 from common.model_interface import PowerForecastInterface
 
@@ -11,23 +9,11 @@ class PvForecastModel(PowerForecastInterface):
     def __init__(
         self, pv_details, model_params, horizon: timedelta = timedelta(hours=1)
     ):
-        self.pv_details = pv_details
+        self.param = pv_details.get("param")
+        self.model_param = model_params.get("model_param")
         self.horizon = timedelta(hours=int(model_params.get("horizon")))
-        self.fc_res = model_params.get("stepsize")
-        self.peak_power = float(self.pv_details.get("peak_power"))
 
-        df = pd.read_csv(
-            pv_details.get("path_to_data"),
-            sep=";",
-            decimal=","
-        )
-        df["DateTime"] = pd.to_datetime(df["Date"] + " " + df["Time"])
-        df.set_index("DateTime", inplace=True)
-        df.sort_index(inplace=True)
-        self.df = df
-
-
-    def get_forecast(self, start = datetime.now) -> pd.Series:
+    def get_forecast(self):
         """Return PV forecast series from now for the configured horizon."""
 
         start_time = pd.Timestamp(start.replace(second=0, microsecond=0)).tz_localize(None).replace(year=2020)
