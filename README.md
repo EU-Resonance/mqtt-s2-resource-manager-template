@@ -156,12 +156,10 @@ pv_device.startDiscovery(
     ),
 )
 
+# Start transmission thread, updateing the power measurement (and power forecast) every 60 seconds
 thread = threading.Thread(
   target=pv_device.startDataTransmission,
-  args=(
-    pv_device.mqttCEM.get("timezone"), 
-    60    # frequency of power measurement update in seconds
-    ),  
+  args=( pv_device.mqttCEM.get("timezone"), 60 ),  
   daemon=True,
 )
 thread.start()
