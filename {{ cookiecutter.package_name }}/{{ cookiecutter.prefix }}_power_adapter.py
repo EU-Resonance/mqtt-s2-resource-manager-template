@@ -1,4 +1,4 @@
-# This in a devices specific class, to specify where the power data is coming from
+# This is a device-specific class, to specify where the power data is coming from
 # and to bring it in the correct format
 
 import logging
@@ -10,6 +10,9 @@ from typing import List
 from collections.abc import Iterable
 import pandas as pd
 
+{% if cookiecutter.use_sri == "mqtt" %}
+import re
+from common.messaging import Messaging as msg{% endif %}
 from common.power_data_connector import PowerDataConnector
 {% if cookiecutter.with_model == "yes" %}
 from common.model_interface import PowerForecastInterface{% endif %}
@@ -46,20 +49,56 @@ class {{ cookiecutter.class_prefix }}DataConnector(PowerDataConnector):
         
         self.measurements = measurements
         self.timezone = timezone
-        {% if cookiecutter.with_model == "yes" %}self.model = model{% endif %}   
+        {% if cookiecutter.with_model == "yes" %}self.model = model{% endif %} 
+        {% if cookiecutter.use_sri != "none" %}self.latest_power = 0.0{% endif %}     
 
-    # Read details to access current power from a database or api
-    '''
+        {% if cookiecutter.use_sri == "mqtt" %}
+        self._setup_sri_subscriber({{ cookiecutter.prefix }}_details.get('mqtt_sri'))
+        {% else %}       
+        # Read details to access current power from a database or api
+        '''
         self.mqtt_connection = {{ cookiecutter.prefix }}_details.get('mqtt_connection')
         self.db_connection = {{ cookiecutter.prefix }}_details.get('db_connection')
         self.api_connection = {{ cookiecutter.prefix }}_details.get('api_connection')
-    '''
+        '''
+        {% endif %}
 
+    {% if cookiecutter.use_sri == "mqtt" %}
+    def _setup_sri_subscriber(self, config):
 
+        if not config:
+            raise ValueError("No MQTT configuration provided in config.json.")
+
+        self.sri_client = msg(
+            config=config, 
+            subscription=config.get('mqtt_topic'), 
+            on_message=self._on_message,
+            clientId=f"{{ cookiecutter.prefix }}-sri-{uuid.uuid4().hex[:8]}"
+            )
+        
+        self.sri_client.loop_start()
+
+    def _on_message(self, client, userdata, msg):
+        try:
+            payload = msg.payload.decode('utf-8')
+            logging.info(f" >> [SRI] Received message on topic {msg.topic}")
+            logging.info(f"          Payload snippet: {payload[:100]}...")
+            
+            power_match = re.search(r'sri4all:powerValue\s+"([\d.]+)"', payload)
+            if power_match:
+                self.latest_power = float(power_match.group(1))
+                logging.info(f" >> [SRI] Extracted latest_power: {self.latest_power}")
+        except Exception as e:
+            logging.error(f"Error processing SRI message: {e}")
+    {% endif %}
 
     def read_current_power(self) -> float:
         ''' Get the current power from any source '''
+        {% if cookiecutter.use_sri != "none" %}
+        return self.latest_power
+        {% else %}
         return 50.0
+        {% endif %}
 
     
 
