@@ -5,7 +5,7 @@ This repository provides a Python framework for implementing EN‑50491‑12‑2
 
 
 #### Acknowledgements 
-This work is based on the work of the RESONANCE research project (Grant Agreement no. 101096200) and will be advanced within the INDEPENDENT project (Grant Agreement no. 101172675). Native S2 data classes are provided by the `s2-python` [project](`https://github.com/flexiblepower/s2-python`).
+This work is based on the work of the RESONANCE research project (Grant Agreement no. 101096200) and will be advanced within the INDEPENDENT project (Grant Agreement no. 101172675). Native S2 data classes are provided by the [s2-python project](https://pypi.org/project/s2-python/).
 
 A documentation of the S2 Standard and support in using it to define flexibility can be found under https://docs.s2standard.org/
 
@@ -18,7 +18,7 @@ To work with this repository you only need **Python >= 3.10** and **`uv`**, a fa
 
 ## Quick Start
 
-This **End-to-End Test Setup** creates an RM container from this repo that offers all five Control Types. The second command pulls external images for a CEM interface and a mosquitto broker to locally showcase the communication.
+This **End-to-End Test Setup** creates an RM container from this repo that offers all five Control Types. The second command pulls external images for a CEM interface, a visualization server and a mosquitto broker to locally showcase the communication.
 
 ```bash
 uvx cookiecutter . --no-input run_tests=yes
@@ -35,18 +35,18 @@ The SDK provides:
 
 - a reusable RM abstraction (`Device`)
 - standardized MQTT communication (`RMClient`)
-- interfaces for power measurements `power_data_connector.py` and resource model (forecasting) `model_interface.py`
-- a cookiecutter template to bootstrap new RM implementations
+- interfaces for power measurements (`PowerDataConnector`) and resource model (`PowerForecastInterface`)
+- a cookiecutter template to bootstrap new RM implementations based on these
 
 The `common/` package is intentionally device‑agnostic and should not contain device‑specific logic. All resource-specific implementation is defined in the child classes, that are generated in the respective interface folder.
 
 ```
 root/
 ├── common/                      ← generic SDK: S2 + MQTT building blocks
-│   ├── device.py                ← base `Device` (RM) abstraction
-│   ├── power_data_connector.py  ← data adapter base + S2 helpers
-│   ├── model_interface.py       ← forecasting/model interface
-│   ├── rmClient.py              ← MQTT client + topic wiring
+│   ├── device.py                ← base Device abstraction for core resource functionalities
+│   ├── power_data_connector.py  ← PowerDataConnector as data adapter base + S2 helpers
+│   ├── model_interface.py       ← forecasting/model interface PowerForecastInterface
+│   ├── rmClient.py              ← RMClient class as MQTT client + topic wiring
 │   └── messaging.py             ← Paho MQTT integration
 │
 ├── cookiecutter.json            # RM project template configuration
