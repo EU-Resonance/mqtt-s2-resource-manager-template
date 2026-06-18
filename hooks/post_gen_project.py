@@ -172,7 +172,7 @@ if "{{ cookiecutter.run_tests }}" == "yes":
     else:
         env_file.write_text(
             f"""TZ=Europe/Berlin
-MQTT_SERVER=host.docker.internal
+MQTT_SERVER=mqtt_broker
 MQTT_PORT=1883
 CEM_ID={uuid.uuid4()}
 """

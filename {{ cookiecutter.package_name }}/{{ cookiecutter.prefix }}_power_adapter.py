@@ -1,4 +1,4 @@
-# This in a devices specific class, to specify where the power data is coming from
+# This is a device-specific class, to specify where the power data is coming from
 # and to bring it in the correct format
 
 import logging
@@ -10,6 +10,9 @@ from typing import List
 from collections.abc import Iterable
 import pandas as pd
 
+{% if cookiecutter.use_sri == "mqtt" %}
+from rdflib import Graph, Namespace, RDF
+from common.messaging import Messaging as msg{% endif %}
 from common.power_data_connector import PowerDataConnector
 {% if cookiecutter.with_model == "yes" %}
 from common.model_interface import PowerForecastInterface{% endif %}
@@ -46,20 +49,126 @@ class {{ cookiecutter.class_prefix }}DataConnector(PowerDataConnector):
         
         self.measurements = measurements
         self.timezone = timezone
-        {% if cookiecutter.with_model == "yes" %}self.model = model{% endif %}   
+        {% if cookiecutter.with_model == "yes" %}self.model = model{% endif %} 
+        {% if cookiecutter.use_sri != "none" %}self.latest_power = 0.0{% endif %}     
 
-    # Read details to access current power from a database or api
-    '''
+        {% if cookiecutter.use_sri == "mqtt" %}
+        self._setup_sri_subscriber({{ cookiecutter.prefix }}_details.get('mqtt_sri'))
+        self.SRI4ALL = Namespace("https://w3id.org/resonance/SRI4ALL#")
+        {% else %}       
+        # Read details to access current power from a database or api
+        '''
         self.mqtt_connection = {{ cookiecutter.prefix }}_details.get('mqtt_connection')
         self.db_connection = {{ cookiecutter.prefix }}_details.get('db_connection')
         self.api_connection = {{ cookiecutter.prefix }}_details.get('api_connection')
-    '''
+        '''
+        {% endif %}
 
+    {% if cookiecutter.use_sri == "mqtt" %}
+    def _setup_sri_subscriber(self, config):
 
+        if not config:
+            raise ValueError("No MQTT configuration provided in config.json.")
+
+        self.sri_client = msg(
+            config=config, 
+            subscription=config.get('mqtt_topic'), 
+            on_message=self._on_message,
+            clientId=f"{{ cookiecutter.prefix }}-sri-{uuid.uuid4().hex[:8]}"
+            )
+        
+        self.sri_client.loop_start()
+
+    def parse_rdf_measurements(self, payload: str) -> dict[str, float]:
+        graph = Graph()
+        graph.parse(data=payload, format="turtle")
+
+        values = {}
+
+        {% if "producer:electricity" in cookiecutter.device_role %}
+        flow_direction_to_search = self.SRI4ALL.production
+        result_key = "production"
+        {% elif "consumer:electricity" in cookiecutter.device_role %}
+        flow_direction_to_search = self.SRI4ALL.consumption
+        result_key = "consumption"
+        {% else %}
+        flow_direction_to_search = None
+        result_key = None
+        {% endif %}
+
+        # If RDF includes sri4all:hasFlowDirection sri4all:production / sri4all:consumption
+        {% if "producer:electricity" in cookiecutter.device_role or "consumer:electricity" in cookiecutter.device_role %}
+        for subject in graph.subjects(RDF.type, self.SRI4ALL.PowerMeasurement):
+            flow_direction = graph.value(subject, self.SRI4ALL.hasFlowDirection)
+            power_value = graph.value(subject, self.SRI4ALL.powerValue)
+
+            if power_value is None:
+                continue
+
+            if flow_direction == flow_direction_to_search:
+                values[result_key] = float(power_value)
+                continue
+
+            if flow_direction is None:
+                values.setdefault(result_key, float(power_value))
+        {% endif %}
+
+        # If only available as string note: sri4all:hasTechnicalContext "production" / "consumption"
+
+        if not values :
+            for subject in graph.subjects(predicate=self.SRI4ALL.hasTechnicalContext):
+                context = str(graph.value(subject, self.SRI4ALL.hasTechnicalContext))
+                power_value = graph.value(subject, self.SRI4ALL.powerValue)
+
+                if power_value is not None:
+                    values[context] = float(power_value)
+                else:
+                    logging.warning(" >> [SRI] No power values found in RDF message.")
+
+        return values
+
+    def _on_message(self, client, userdata, msg):
+        try:
+            payload = msg.payload.decode("utf-8")
+            logging.info(f" >> [SRI] Received message on topic {msg.topic}")
+            logging.info(f"          Payload snippet: {payload[:100]}...")
+
+            values = self.parse_rdf_measurements(payload)
+            #logging.info(f" >> [SRI] Parsed RDF measurements: {values}")
+
+            {% if "producer:electricity" in cookiecutter.device_role %}
+            power_value = values.get("production")
+
+            if power_value is not None:
+                self.latest_power = power_value
+                logging.info(f" >> [SRI] Extracted latest_power from production: {self.latest_power}")
+            else:
+                logging.warning(" >> [SRI] No production power value found in message.")
+
+            {% elif "consumer:electricity" in cookiecutter.device_role %}
+            power_value = values.get("consumption")
+
+            if power_value is not None:
+                self.latest_power = power_value
+                logging.info(f" >> [SRI] Extracted latest_power from consumption: {self.latest_power}")
+            else:
+                logging.warning(" >> [SRI] No consumption power value found in message.")
+
+            {% else %}
+            logging.warning(" >> [SRI] No relevant power value found in message.")
+            {% endif %}
+
+        except Exception as e:
+            logging.error(f"Error processing SRI message: {e}")
+    {% endif %}
 
     def read_current_power(self) -> float:
         ''' Get the current power from any source '''
+        {% if cookiecutter.use_sri != "none" %}
+        return self.latest_power
+        {% else %}
         return 50.0
+        {% endif %}
 
     
 

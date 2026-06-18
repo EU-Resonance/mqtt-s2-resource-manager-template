@@ -1,6 +1,12 @@
 {
     "{{ cookiecutter.prefix }}_details": {
+        {% if cookiecutter.use_sri == "mqtt" %}"mqtt_sri": {
+            "mqtt_topic": "your/topic/here",
+            "mqtt_broker": "broker_address",
+            "mqtt_port": 1883
+        }{% else %}
         "param": "value"
+        {% endif %}
     }{% if cookiecutter.with_model == "yes" %},
     "{{ cookiecutter.prefix }}_model": {
         "model_param": "value",
