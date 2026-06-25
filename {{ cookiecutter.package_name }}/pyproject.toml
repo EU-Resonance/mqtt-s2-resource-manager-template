@@ -12,11 +12,12 @@ authors = [
     { name = "Autor", email = "name@domain.org" }
 ]
 license = { text = "MIT" }
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 dependencies = [
     "paho-mqtt==1.6.1",
-    "s2-python==0.8.1",
-    "pandas==2.2.2"
+    "s2-python==0.9.1",
+    "pandas==3.0.3",
+    "rdflib>=7.6.0",
 ]
 
 
@@ -34,7 +35,7 @@ testpaths = ["{{ cookiecutter.package_name }}/tests"]
 
 [tool.ruff]
 line-length = 88
-target-version = "py310"
+target-version = "py311"
 
 [tool.ruff.lint]
 select = ["E", "F", "I"]

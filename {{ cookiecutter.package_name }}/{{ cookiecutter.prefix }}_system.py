@@ -2,7 +2,9 @@ from datetime import timedelta
 import threading
 import uuid
 import json
+
 from typing import List
+from importlib.resources import files
 
 from common.device import Device
 from common.power_data_connector import PowerDataConnector
@@ -102,6 +104,7 @@ class {{ cookiecutter.class_prefix }}System(Device):
         self.stop_transmission.set()  # Signal the thread to stop
         
 
+    """ ================= S2 Resource Manager Details ================= """
 
     def _set_rm_details(self):
         return ResourceManagerDetails(
@@ -139,7 +142,8 @@ class {{ cookiecutter.class_prefix }}System(Device):
         # Model-Type: choose btw lstm , gru, rfr, h1 or h2 - set in config.json
         return {{ cookiecutter.class_prefix }}ForecastModel(
             {{ cookiecutter.prefix }}_details = self.{{ cookiecutter.prefix }}Details,
-            model_params = self.model_config
+            model_params = self.model_config,
+            timezone=self.timezone,
         ){% endif  %}
 
     
@@ -153,18 +157,25 @@ class {{ cookiecutter.class_prefix }}System(Device):
         )
     
 
-    """ Load device specific config data """
+    """ ================= Load config data ================= """
+
+    def _load_config(self):
+        if not hasattr(self, "_package_config"):
+            config_file = files("sets_rm_interface").joinpath("resources/config.json")
+
+            with config_file.open("r", encoding="utf-8") as f:
+                self._package_config = json.load(f)
+
+        return self._package_config
 
     def _load_{{ cookiecutter.prefix }}_config(self):
-        with open('./{{ cookiecutter.prefix }}_rm_interface/resources/config.json', 'r') as f:
-            config = json.load(f)
-        return config.get('{{ cookiecutter.prefix }}_details', {})
+        return self._load_config().get("{{ cookiecutter.prefix }}_details", {})
 
     {% if cookiecutter.with_model == "yes" %}
     def _load_model_config(self):
-        with open('./{{ cookiecutter.prefix }}_rm_interface/resources/config.json', 'r') as f:
-            config = json.load(f)
-        return config.get('{{ cookiecutter.prefix }}_model', {}){% endif  %}  
+        return self._load_config().get("{{ cookiecutter.prefix }}_model", {}){% endif  %} 
+
+
     
     """ ================= Device Interface Methods ================= """
 

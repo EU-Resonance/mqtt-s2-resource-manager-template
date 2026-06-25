@@ -1,6 +1,6 @@
 # S2 Resource Manager SDK
 
-This repository provides a Python framework for implementing EN‑50491‑12‑2 (S2 Standard) compliant Resource Managers (RM) interfaces for any device (PV, heat pump, storage, EV charger, …) that enables communication with a Central Energy Manager (CEM) via MQTT.  
+This repository provides a Python framework for implementing EN‑50491‑12‑2 (S2 Standard) compliant Resource Managers (RM) interfaces for any device (PV, heat pump, storage, EV charger, …) that enables communication with a Customer Energy Manager (CEM) via MQTT.  
 
 
 
@@ -87,11 +87,14 @@ pip install -e .
 ```
 This allows you to import it in your codebase and use its helper functions from within your own project or RM controller, as shown below for a heat pump example.
 
+> Note: The MQTT details for connection with the CEM should be environmental variables. They can also be included manually using dotenv
+
 
 ```python
 import threading
 from s2python.common import ControlType
 from hp_rm_interface.hp_system import HpSystem
+from dotenv import load_dotenv
 
 def handle_callbacks(callback, hp_device):
   """Callback function for handling the CEM control and activation messages"""
@@ -99,6 +102,9 @@ def handle_callbacks(callback, hp_device):
   if isinstance(callback, ControlType):
     hp_device.activeControlType = callback
     hp_device.sendSystemDescription()
+
+# Load MQTT connection details and timezone from .env file
+load_dotenv("environment.env")
 
 # Create Heat Pump RM instance
 hp_device = HpSystem()

@@ -1,6 +1,7 @@
 import logging
 import pandas as pd
 from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 
 from common.model_interface import PowerForecastInterface
 
@@ -10,10 +11,12 @@ class {{ cookiecutter.class_prefix }}ForecastModel(PowerForecastInterface):
     def __init__(self, 
                 {{ cookiecutter.prefix }}_details, 
                 model_params, 
+                timezone = "Europe/Berlin",
                 horizon: timedelta = timedelta(hours=1)):
         self.param = {{ cookiecutter.prefix }}_details.get('param')
-        self.model_param = model_params.get('model_param')
+        self.model_param = model_params
         self.horizon = timedelta(hours=int(model_params.get('horizon')))
+        self.local_tz = ZoneInfo(timezone)
 
 
     def get_forecast(self):
